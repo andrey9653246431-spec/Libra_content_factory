@@ -143,6 +143,7 @@ jobs:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERBOSE: "1"
         run: |
           SLOT="${{ github.event.inputs.slot || 'auto' }}"
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -164,7 +165,8 @@ jobs:
             SLOT="auto"
           fi
 
-          python -m src.main --slot "$SLOT" $EXTRA_FLAGS
+          echo "::notice::Запуск: slot=$SLOT dry_run=${{ github.event.inputs.dry_run }} token_set=${{ secrets.TG_BOT_TOKEN != '' }} channel_set=${{ secrets.TG_CHANNEL_ID != '' }}"
+          python -m src.main --slot "$SLOT" --verbose $EXTRA_FLAGS
 
       - name: Save generated preview artifacts
         uses: actions/upload-artifact@v6
