@@ -1,6 +1,7 @@
 {
   "used_tarot": [
-    "VIII_STRENGTH"
+    "VIII_STRENGTH",
+    "III_EMPRESS"
   ],
   "used_compat": [],
   "posts": [
@@ -9,6 +10,12 @@
       "slot": "day",
       "rubric": "tarot",
       "title": "Карта дня: VIII • Сила"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: III • Императрица"
     }
   ]
 }
