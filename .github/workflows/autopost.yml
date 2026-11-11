@@ -31,6 +31,12 @@ on:
         default: false
         type: boolean
 
+  # Автозапуск при правке самого workflow — регистрирует файл в GitHub,
+  # чтобы кнопка «Run workflow» появилась сразу. Пост не публикуется.
+  push:
+    paths:
+      - ".github/workflows/autopost.yml"
+
 permissions:
   contents: write
   models: read
@@ -41,19 +47,81 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      # ────────────────────────────────────────────────────────────────
+      # Самовосстановление структуры: если файлы лежат «плоско» или
+      # отсутствует requirements.txt, но в корне есть
+      # libra-content-factory.zip — проект распаковывается автоматически.
+      # ────────────────────────────────────────────────────────────────
+      - name: Bootstrap layout from zip (if repo is not laid out)
+        shell: bash
+        run: |
+          if [ -f requirements.txt ] && [ -f src/main.py ]; then
+            echo "::notice::Структура репозитория в порядке"
+            exit 0
+          fi
+
+          if [ ! -f libra-content-factory.zip ]; then
+            echo "::error::Структура нарушена (нет requirements.txt или src/main.py),"
+            echo "::error::и в корне нет libra-content-factory.zip."
+            echo "::error::Загрузите архив в корень репозитория (Add file → Upload files)."
+            exit 1
+          fi
+
+          echo "::warning::Структура нарушена — распаковываю libra-content-factory.zip"
+          mkdir -p .unpack
+          unzip -q -o libra-content-factory.zip -d .unpack
+          if [ -d .unpack/libra-content-factory ]; then
+            cp -a .unpack/libra-content-factory/. .
+          else
+            cp -a .unpack/. .
+          fi
+          rm -rf .unpack
+
+          # Убираем «плоские» дубли и мусор от тестовых прогонов
+          rm -f __init__.py astro_engine.py card_generator.py fallback_writer.py llm_client.py \
+                main.py telegram_publisher.py content_plan.md history.json last_post.json \
+                test_factory.py libra_avatar.png card_2026-*.png || true
+          git rm -q libra-content-factory.zip || rm -f libra-content-factory.zip || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: bootstrap project layout from zip [skip ci]" || echo "нечего коммитить"
+          git push || echo "::warning::push не удался — структура исправлена только на время этого запуска"
+
+          echo "::notice::Структура восстановлена из архива"
+
+      - name: Verify repository layout
+        shell: bash
+        run: |
+          echo "=== Содержимое корня ==="
+          ls -la
+          for f in requirements.txt src/main.py src/astro_engine.py src/card_generator.py \
+                   src/llm_client.py src/fallback_writer.py src/telegram_publisher.py; do
+            if [ -f "$f" ]; then
+              echo "✅ $f"
+            else
+              echo "::error::Отсутствует $f"
+              ok=0
+            fi
+          done
+          if [ "${ok:-1}" != "1" ]; then
+            echo "::error::Структура всё ещё нарушена — запустите «Fix repo layout (one-time)»."
+            exit 1
+          fi
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-          cache: "pip"
 
-      - name: Install system fonts and Python dependencies
+      - name: Install fonts and Python dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq fonts-dejavu-core
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
 
       - name: Generate and publish post
         env:
@@ -85,22 +153,27 @@ jobs:
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             EXTRA_FLAGS="--dry-run"
           fi
+          # Автозапуск после правки workflow никогда не публикует пост
+          if [ "${{ github.event_name }}" = "push" ]; then
+            EXTRA_FLAGS="--dry-run"
+            SLOT="auto"
+          fi
 
           python -m src.main --slot "$SLOT" $EXTRA_FLAGS
 
       - name: Save generated preview artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: libra-post-preview
           path: output/
           retention-days: 7
 
       - name: Commit updated anti-repeat history
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event_name != 'push' && github.event.inputs.dry_run != 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet data/history.json 2>/dev/null || [ -n "$(git status --porcelain data/history.json)" ]; then
+          if [ -n "$(git status --porcelain data/history.json)" ]; then
             git add data/history.json
             git commit -m "chore: update astro content history [skip ci]"
             git push
