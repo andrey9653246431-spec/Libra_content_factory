@@ -79,11 +79,6 @@ jobs:
           fi
           rm -rf .unpack
 
-          # GITHUB_TOKEN НЕ имеет права менять файлы .github/workflows —
-          # вернём их к состоянию из репозитория, иначе git push будет отклонён.
-          git checkout -- .github/workflows 2>/dev/null || true
-          git clean -fdq .github/workflows 2>/dev/null || true
-
           # Убираем «плоские» дубли и мусор от тестовых прогонов
           rm -f __init__.py astro_engine.py card_generator.py fallback_writer.py llm_client.py \
                 main.py telegram_publisher.py content_plan.md history.json last_post.json \
@@ -94,7 +89,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "chore: bootstrap project layout from zip [skip ci]" || echo "нечего коммитить"
-          git push || echo "::warning::push не удался — структура исправлена только для этого запуска (файлы останутся как есть до следующего раза)"
+          git push || echo "::warning::push не удался — структура исправлена только на время этого запуска"
 
           echo "::notice::Структура восстановлена из архива"
 
@@ -143,7 +138,6 @@ jobs:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERBOSE: "1"
         run: |
           SLOT="${{ github.event.inputs.slot || 'auto' }}"
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -165,8 +159,7 @@ jobs:
             SLOT="auto"
           fi
 
-          echo "::notice::Запуск: slot=$SLOT dry_run=${{ github.event.inputs.dry_run }} token_set=${{ secrets.TG_BOT_TOKEN != '' }} channel_set=${{ secrets.TG_CHANNEL_ID != '' }}"
-          python -m src.main --slot "$SLOT" --verbose $EXTRA_FLAGS
+          python -m src.main --slot "$SLOT" $EXTRA_FLAGS
 
       - name: Save generated preview artifacts
         uses: actions/upload-artifact@v6
