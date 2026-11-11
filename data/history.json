@@ -23,6 +23,12 @@
       "slot": "day",
       "rubric": "tarot",
       "title": "Карта дня: IV • Четвёрка Жезлов"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "evening",
+      "rubric": "venus",
+      "title": "Совет Венеры на 11 ноября"
     }
   ]
 }
