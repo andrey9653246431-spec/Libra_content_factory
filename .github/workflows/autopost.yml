@@ -79,6 +79,11 @@ jobs:
           fi
           rm -rf .unpack
 
+          # GITHUB_TOKEN НЕ имеет права менять файлы .github/workflows —
+          # вернём их к состоянию из репозитория, иначе git push будет отклонён.
+          git checkout -- .github/workflows 2>/dev/null || true
+          git clean -fdq .github/workflows 2>/dev/null || true
+
           # Убираем «плоские» дубли и мусор от тестовых прогонов
           rm -f __init__.py astro_engine.py card_generator.py fallback_writer.py llm_client.py \
                 main.py telegram_publisher.py content_plan.md history.json last_post.json \
@@ -89,7 +94,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "chore: bootstrap project layout from zip [skip ci]" || echo "нечего коммитить"
-          git push || echo "::warning::push не удался — структура исправлена только на время этого запуска"
+          git push || echo "::warning::push не удался — структура исправлена только для этого запуска (файлы останутся как есть до следующего раза)"
 
           echo "::notice::Структура восстановлена из архива"
 
