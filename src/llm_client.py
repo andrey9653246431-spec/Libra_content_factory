@@ -10,61 +10,86 @@ from typing import Any
 import requests
 
 from src.astro_engine import DailyAstroContext
+from src.content_extras import LIBRA_TYPES, MONTH_THEMES
 from src.fallback_writer import generate_fallback_post
 
 ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote", "tg-spoiler", "a"}
 
 
-def _detect_provider() -> dict[str, str] | None:
-    """Выбирает первый доступный бесплатный провайдер по переменным окружения."""
+def _detect_providers() -> list[dict[str, str]]:
+    """Возвращает СПИСОК доступных бесплатных провайдеров в порядке приоритета.
+
+    Каскад нужен для максимальной автономности: если первый провайдер вернул
+    ошибку (лимит, сбой, отозванный ключ), код автоматически пробует следующий,
+    и только в самом конце откатывается на офлайн-движок.
+    """
+    providers: list[dict[str, str]] = []
+
     explicit_key = os.getenv("LLM_API_KEY", "").strip()
     if explicit_key:
         base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
         model = os.getenv("LLM_MODEL", "gpt-4o-mini").strip()
-        return {
+        providers.append({
             "name": "custom_llm",
             "url": f"{base_url}/chat/completions" if not base_url.endswith("/chat/completions") else base_url,
             "api_key": explicit_key,
             "model": model,
-        }
+        })
+
+    groq_key_early = os.getenv("GROQ_API_KEY", "").strip()
+    if groq_key_early:
+        providers.append({
+            "name": "groq_free",
+            "url": "https://api.groq.com/openai/v1/chat/completions",
+            "api_key": groq_key_early,
+            "model": os.getenv("GROQ_MODEL", os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")).strip(),
+        })
 
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     if gemini_key:
-        return {
+        providers.append({
             "name": "gemini_free",
             "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
             "api_key": gemini_key,
-            "model": os.getenv("LLM_MODEL", "gemini-2.5-flash").strip(),
-        }
-
-    groq_key = os.getenv("GROQ_API_KEY", "").strip()
-    if groq_key:
-        return {
-            "name": "groq_free",
-            "url": "https://api.groq.com/openai/v1/chat/completions",
-            "api_key": groq_key,
-            "model": os.getenv("LLM_MODEL", "llama-3.3-70b-versatile").strip(),
-        }
+            "model": os.getenv("GEMINI_MODEL", os.getenv("LLM_MODEL", "gemini-2.5-flash")).strip(),
+        })
 
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if openrouter_key:
-        return {
+        providers.append({
             "name": "openrouter_free",
             "url": "https://openrouter.ai/api/v1/chat/completions",
             "api_key": openrouter_key,
-            "model": os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct:free").strip(),
-        }
+            "model": os.getenv("OPENROUTER_MODEL", os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct:free")).strip(),
+        })
 
     github_token = os.getenv("GITHUB_TOKEN", "").strip()
     if github_token:
-        return {
+        providers.append({
             "name": "github_models",
             "url": "https://models.github.ai/inference/chat/completions",
             "api_key": github_token,
-            "model": os.getenv("LLM_MODEL", "openai/gpt-4o-mini").strip(),
-        }
+            "model": os.getenv("GITHUB_MODEL", os.getenv("LLM_MODEL", "openai/gpt-4o-mini")).strip(),
+        })
 
-    return None
+    return providers
+
+
+def _detect_provider() -> dict[str, str] | None:
+    """Первый доступный провайдер (совместимость с прежним кодом)."""
+    providers = _detect_providers()
+    return providers[0] if providers else None
+
+
+def active_provider_label(force_offline: bool = False) -> str:
+    """Человекочитаемое описание того, кто будет генерировать текст."""
+    if force_offline:
+        return "offline_engine (принудительно)"
+    providers = _detect_providers()
+    if not providers:
+        return "offline_engine (ключи ИИ не заданы)"
+    names = [f"{p['name']}:{p['model']}" for p in providers]
+    return " → ".join(names) + " → offline_engine (резерв)"
 
 
 def sanitize_telegram_html(text: str, max_len: int = 980) -> str:
@@ -175,6 +200,48 @@ def _build_prompts(ctx: DailyAstroContext, channel_handle: str) -> tuple[str, st
             "Рубрика: Фокус Весов на новую неделю. "
             "Помоги настроиться на ближайшие 7 дней: 3 коротких ориентира (энергия, дела, отношения) и счастливый ориентир."
         ),
+        "sex": (
+            f"Рубрика: Секс и чувственность Весов. Партнёрский знак дня — {ctx.compat_partner['sign']}. "
+            "Пиши деликатно, эстетично, без пошлости и анатомических подробностей: речь о желании, близости, "
+            "умении просить и слышать. Дай 3 блока: настроение дня, уровень желания (по шкале из 5), практика на вечер. "
+            f"Для card_headline используй «ЧУВСТВЕННОСТЬ ВЕСОВ»."
+        ),
+        "love_daily": (
+            f"Рубрика: Любовь с Весами, ежедневный разбор конкретной пары. Сегодня в фокусе: Весы ♎ × {ctx.compat_partner['sign']} {ctx.compat_partner['symbol']}. "
+            f"Базовая динамика пары: {ctx.compat_partner['dynamic']} "
+            "Дай 4 блока: как сегодня проявляется любовь, что нужно вашему человеку, баланс пары, часы для разговоров. "
+            f"Для card_headline используй «ВЕСЫ × {ctx.compat_partner['sign'].upper()}»."
+        ),
+        "business": (
+            f"Рубрика: Бизнес и деньги для Весов. Партнёрский знак дня — {ctx.compat_partner['sign']}. "
+            "Дай 4 блока: фокус дня, партнёры и клиенты, деньги, индекс дел. "
+            "Стиль деловой, но с астрологической ноткой, без обещаний дохода. "
+            f"Для card_headline используй «БИЗНЕС ВЕСОВ»."
+        ),
+        "quiz": (
+            f"Рубрика: Тест «Какой вы Весы?». Три типа: {', '.join(t['name'] for t in LIBRA_TYPES)}. "
+            f"Тип дня — {ctx.libra_type['name'] if ctx.libra_type else LIBRA_TYPES[0]['name']}. "
+            "Опиши три варианта по одной строке, попроси читателя написать цифру в комментариях, "
+            "и раскрой тип дня: сильная сторона, риск, совет."
+        ),
+        "moon_today": (
+            "Рубрика: Луна сегодня. Это КОРОТКАЯ карточка без длинного текста: фаза Луны, знак, "
+            "освещённость, одна ёмкая фраза-послание дня и приглашение переслать пост. "
+            "Максимум 420 символов. Никаких списков и разборов."
+        ),
+        "month_love": (
+            f"Рубрика: ЛЮБОВЬ ВЕСОВ НА {ctx.target_month_name.upper()} — прогноз на следующий месяц. "
+            f"Тема месяца: {MONTH_THEMES[ctx.target_month % len(MONTH_THEMES)]}. "
+            "Дай масштабный, но конкретный прогноз на месяц: главная линия, удачные дни, что отпустить."
+        ),
+        "month_sex": (
+            f"Рубрика: ЧУВСТВЕННОСТЬ ВЕСОВ НА {ctx.target_month_name.upper()} — прогноз на месяц. "
+            "Деликатно и эстетично: главная линия желания, практика месяца, лучшие дни."
+        ),
+        "month_business": (
+            f"Рубрика: БИЗНЕС ВЕСОВ НА {ctx.target_month_name.upper()} — прогноз на месяц. "
+            "Главная линия в делах и деньгах, партнёрства, удачные дни для сделок."
+        ),
     }
 
     handle_note = f"В самом конце добавь теги {ctx.rubric_hashtag} • {channel_handle}" if channel_handle else f"В конце добавь теги {ctx.rubric_hashtag}"
@@ -209,21 +276,8 @@ def _extract_json_payload(raw_content: str) -> dict[str, Any]:
     return data
 
 
-def generate_post_content(
-    ctx: DailyAstroContext,
-    channel_handle: str = "",
-    force_offline: bool = False,
-) -> dict[str, Any]:
-    """Генерирует пост через бесплатный LLM API или откатывается на офлайн-движок."""
-    fallback = generate_fallback_post(ctx, channel_handle=channel_handle)
-    if force_offline:
-        return fallback
-
-    provider = _detect_provider()
-    if not provider:
-        return fallback
-
-    system_prompt, user_prompt = _build_prompts(ctx, channel_handle=channel_handle)
+def _request_llm(provider: dict[str, str], system_prompt: str, user_prompt: str) -> str:
+    """Один запрос к провайдеру. Возвращает сырой текст ответа модели."""
     headers = {
         "Authorization": f"Bearer {provider['api_key']}",
         "Content-Type": "application/json",
@@ -242,28 +296,57 @@ def generate_post_content(
         "max_tokens": 900,
     }
 
-    try:
-        resp = requests.post(provider["url"], headers=headers, json=payload, timeout=45)
-        resp.raise_for_status()
-        body = resp.json()
-        raw_text = body["choices"][0]["message"]["content"]
-        parsed = _extract_json_payload(raw_text)
+    resp = requests.post(provider["url"], headers=headers, json=payload, timeout=45)
+    if resp.status_code != 200:
+        detail = resp.text[:200].replace("\n", " ")
+        raise RuntimeError(f"HTTP {resp.status_code}: {detail}")
+    body = resp.json()
+    return body["choices"][0]["message"]["content"]
 
-        post_html = sanitize_telegram_html(str(parsed.get("post_html", "")), max_len=980)
-        if len(post_html) < 120:
-            raise ValueError("Слишком короткий ответ LLM")
 
-        headline = re.sub(r"[<>]", "", str(parsed.get("card_headline") or fallback["card_headline"])).strip()[:38]
-        subline = re.sub(r"[<>]", "", str(parsed.get("card_subline") or fallback["card_subline"])).strip()[:52]
-        title = str(parsed.get("title") or fallback["title"]).strip()[:100]
-
-        return {
-            "title": title,
-            "card_headline": headline.upper(),
-            "card_subline": subline,
-            "post_html": post_html,
-            "source": f"{provider['name']}:{provider['model']}",
-        }
-    except Exception as exc:
-        fallback["fallback_reason"] = str(exc)
+def generate_post_content(
+    ctx: DailyAstroContext,
+    channel_handle: str = "",
+    force_offline: bool = False,
+) -> dict[str, Any]:
+    """Генерирует пост через бесплатные LLM API с каскадом провайдеров и офлайн-резервом."""
+    fallback = generate_fallback_post(ctx, channel_handle=channel_handle)
+    if force_offline:
         return fallback
+
+    providers = _detect_providers()
+    if not providers:
+        return fallback
+
+    system_prompt, user_prompt = _build_prompts(ctx, channel_handle=channel_handle)
+    attempts: list[str] = []
+
+    for provider in providers:
+        label = f"{provider['name']}:{provider['model']}"
+        try:
+            raw_text = _request_llm(provider, system_prompt, user_prompt)
+            parsed = _extract_json_payload(raw_text)
+
+            post_html = sanitize_telegram_html(str(parsed.get("post_html", "")), max_len=980)
+            if len(post_html) < 120:
+                raise ValueError("Слишком короткий ответ LLM")
+
+            headline = re.sub(r"[<>]", "", str(parsed.get("card_headline") or fallback["card_headline"])).strip()[:38]
+            subline = re.sub(r"[<>]", "", str(parsed.get("card_subline") or fallback["card_subline"])).strip()[:52]
+            title = str(parsed.get("title") or fallback["title"]).strip()[:100]
+
+            return {
+                "title": title,
+                "card_headline": headline.upper(),
+                "card_subline": subline,
+                "post_html": post_html,
+                "source": label,
+                "provider_attempts": attempts + [f"{label}: ok"],
+            }
+        except Exception as exc:  # noqa: BLE001 — пробуем следующего провайдера
+            attempts.append(f"{label}: {type(exc).__name__}: {exc}")
+            continue
+
+    fallback["fallback_reason"] = " | ".join(attempts) if attempts else "нет доступных провайдеров"
+    fallback["provider_attempts"] = attempts
+    return fallback

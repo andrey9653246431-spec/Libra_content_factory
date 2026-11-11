@@ -111,14 +111,14 @@ https://api.telegram.org/bot<ВАШ_ТОКЕН>/getMe
 
 #### Способ А. Публичный канал (проще всего)
 
-Если у канала есть @username (публичная ссылка вида `t.me/vesy_prognoz`), то ID —
+Если у канала есть @username (публичная ссылка вида `t.me/libra_astra`), то ID —
 просто этот username с собакой:
 
 ```
 @vesy_prognoz
 ```
 
-> Значения `t.me/vesy_prognoz`, `vesy_prognoz`, `https://t.me/vesy_prognoz` — **не подойдут**. Нужно ровно `@vesy_prognoz`.
+> Значения `t.me/libra_astra`, `vesy_prognoz`, `https://t.me/libra_astra` — **не подойдут**. Нужно ровно `@libra_astra`.
 
 #### Способ Б. Любой канал (публичный или закрытый) — через @getidsbot
 
@@ -146,11 +146,11 @@ https://api.telegram.org/bot<ВАШ_ТОКЕН>/getMe
 
 | Значение | Подходит? | Комментарий |
 |---|---|---|
-| `@vesy_prognoz` | ✅ | Публичный канал, username |
+| `@libra_astra` | ✅ | Публичный канал, username |
 | `-1001234567890` | ✅ | Любой канал; **обязательно для закрытого** |
 | `-1001234567890` без минуса (`1001234567890`) | ❌ | Будет `chat not found` |
 | `1234567890` (без `-100`) | ❌ | Telegram примет за ID пользователя → `chat not found` |
-| `t.me/vesy_prognoz` или `https://t.me/…` | ❌ | Ссылка вместо ID |
+| `t.me/libra_astra` или `https://t.me/…` | ❌ | Ссылка вместо ID |
 | `-1001234567890_title` / `@` + кириллица | ❌ | Такое в Telegram не существует |
 
 ### 3.4. Сохраняем
@@ -158,7 +158,7 @@ https://api.telegram.org/bot<ВАШ_ТОКЕН>/getMe
 **Settings → Secrets and variables → Actions → Secrets → New repository secret**
 
 - **Name:** `TG_CHANNEL_ID`
-- **Secret:** `@vesy_prognoz` **или** `-1001234567890`
+- **Secret:** `@libra_astra` **или** `-1001234567890`
 
 → **Add secret**.
 
@@ -247,7 +247,7 @@ env:
 
 | Имя | Значение по умолчанию | Зачем |
 |---|---|---|
-| `CHANNEL_HANDLE` | `@vesy_prognoz` | Подпись в подвале карточки и в конце поста. Поставьте **ваш** username канала |
+| `CHANNEL_HANDLE` | `@libra_astra` | Подпись в подвале карточки и в конце поста. Поставьте **ваш** username канала |
 | `PUBLISH_MODE` | `auto` | `auto` — сразу в канал; `draft` — черновик вам в личку |
 | `TIMEZONE_OFFSET` | `3` | Часовой пояс для определения утреннего/вечернего слота. Москва = `3`, Екатеринбург = `5`, Калининград = `2` |
 | `LLM_MODEL` | зависит от провайдера | Заменить модель ИИ |
@@ -305,7 +305,7 @@ env:
 cd libra-content-factory
 pip install -r requirements.txt
 export TG_BOT_TOKEN="1234567890:AAF…"      # Windows PowerShell: $env:TG_BOT_TOKEN="…"
-export TG_CHANNEL_ID="@vesy_prognoz"
+export TG_CHANNEL_ID="@libra_astra"
 python -m tools.preflight --test-llm
 ```
 

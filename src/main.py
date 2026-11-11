@@ -6,12 +6,13 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from calendar import monthrange
 from pathlib import Path
 
 from src.astro_engine import build_daily_context, load_history, save_history
 from src.card_generator import render_daily_card
-from src.llm_client import generate_post_content
+from src.llm_client import active_provider_label, generate_post_content
 from src.telegram_publisher import publish_to_telegram
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -50,6 +51,51 @@ def _infer_slot_by_hour(tz_offset_hours: int) -> str:
     return "evening"
 
 
+MONTH_DIGEST_ORDER = ("month_love", "month_sex", "month_business")
+
+
+def _run_month_digest(dry_run: bool, force_offline: bool, date_override: str | None) -> int:
+    """Последний день месяца: три прогноза подряд — любовь → секс → бизнес.
+
+    Публикуются с паузой, чтобы Telegram не склеивал альбомы и лента
+    выглядела как три отдельных поста.
+    """
+    import time
+
+    tz_offset = int(os.getenv("TIMEZONE_OFFSET", "3"))
+    now_utc = datetime.now(timezone.utc)
+    if date_override:
+        now_utc = datetime.strptime(date_override, "%Y-%m-%d").replace(hour=9, tzinfo=timezone.utc)
+
+    last_day = monthrange(now_utc.year, now_utc.month)[1]
+    local_day = (now_utc + timedelta(hours=tz_offset)).day
+    if local_day != last_day:
+        print(
+            f"::notice::Дайджест месяца не нужен: сегодня {local_day}-е, "
+            f"последний день месяца — {last_day}-е. Пост пропущен."
+        )
+        return 0
+
+    exit_code = 0
+    for idx, rubric in enumerate(MONTH_DIGEST_ORDER, 1):
+        print(f"── Дайджест {idx}/3: {rubric} ──")
+        try:
+            res = run_pipeline(
+                slot=rubric,
+                dry_run=dry_run,
+                force_offline=force_offline,
+                no_image=False,
+                date_override=date_override,
+            )
+            print(f"[OK] {rubric}: {res['title']}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"::error::Дайджест {idx}/3 ({rubric}) не удался: {type(exc).__name__}: {exc}")
+            exit_code = 1
+        if idx < len(MONTH_DIGEST_ORDER) and not dry_run:
+            time.sleep(45)
+    return exit_code
+
+
 def run_pipeline(
     slot: str = "auto",
     dry_run: bool = False,
@@ -77,7 +123,7 @@ def run_pipeline(
         history_path=history_path,
     )
 
-    log(f"[2/5] Генерация текста: провайдер={'offline' if force_offline else 'auto'}, подпись={channel_handle!r}")
+    log(f"[2/5] Генерация текста: {active_provider_label(force_offline)}, подпись={channel_handle!r}")
     content = generate_post_content(
         ctx=ctx,
         channel_handle=channel_handle,
@@ -132,7 +178,9 @@ def run_pipeline(
     history = load_history(history_path)
     save_history(history_path, history, ctx, content["title"])
 
-    log("[5/5] История антиповтора обновлена")
+    log(f"[5/5] История антиповтора обновлена. Источник текста: {content.get('source')}")
+    if content.get("fallback_reason"):
+        log(f"      ↳ ИИ недоступен, использован офлайн-движок: {content['fallback_reason']}")
     result_record["published"] = True
     result_record["telegram_message_id"] = tg_resp.get("result", {}).get("message_id")
     return result_record
@@ -144,7 +192,12 @@ def main() -> int:
     parser.add_argument(
         "--slot",
         default=os.getenv("POST_SLOT", "auto"),
-        choices=["auto", "morning", "day", "evening", "forecast", "tarot", "love", "venus", "week_ahead"],
+        choices=[
+            "auto", "morning", "day", "evening",
+            "forecast", "tarot", "love", "venus", "week_ahead",
+            "sex", "love_daily", "business", "quiz", "moon",
+            "month_love", "month_sex", "month_business", "month_digest",
+        ],
         help="Слот или конкретная рубрика поста",
     )
     parser.add_argument("--dry-run", action="store_true", help="Сгенерировать пост и картинку без отправки в Telegram")
@@ -170,6 +223,9 @@ def main() -> int:
             print("   Settings → Secrets and variables → Actions → вкладка Secrets", file=sys.stderr)
             print("   Подсказка: можно задать только TG_BOT_TOKEN, а канал — в Variables CHANNEL_HANDLE=@username", file=sys.stderr)
             return 1
+
+    if args.slot == "month_digest":
+        return _run_month_digest(args.dry_run, args.offline, args.date)
 
     try:
         res = run_pipeline(

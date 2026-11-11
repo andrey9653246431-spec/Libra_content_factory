@@ -71,6 +71,21 @@ def _clean_serif_text(text: str) -> str:
     return re.sub(r"\s{2,}", " ", text).strip()
 
 
+def _sentence_case(text: str) -> str:
+    """«Лев • Максимум энергия» → «Лев • максимум энергия» (аккуратный подзаголовок)."""
+    if not text:
+        return text
+    out = []
+    start_of_phrase = True
+    for ch in text:
+        if ch.isalpha() and start_of_phrase and ch.isupper():
+            out.append(ch.lower() if out and out[-1] not in "•—-" else ch)
+        else:
+            out.append(ch)
+        start_of_phrase = ch in "  " or ch in "•—–-"
+    return "".join(out)
+
+
 def _draw_4point_star(draw: ImageDraw.ImageDraw, cx: float, cy: float, r_outer: float, r_inner: float, fill: tuple[int, int, int]) -> None:
     pts = []
     for i in range(8):
@@ -208,12 +223,11 @@ def _draw_libra_scales(draw: ImageDraw.ImageDraw, cx: float, cy: float, scale: f
             fill=GOLD_BRIGHT,
             width=max(3, int(6 * s)),
         )
-        draw.chord(
+        draw.arc(
             (left_x, pan_y - 16 * s, right_x, pan_y + 38 * s),
             start=0,
             end=180,
-            fill=(165, 138, 82),
-            outline=GOLD_BRIGHT,
+            fill=GOLD_BRIGHT,
             width=max(2, int(4 * s)),
         )
         draw.line([(left_x - 6 * s, pan_y + 10 * s), (right_x + 6 * s, pan_y + 10 * s)], fill=GOLD_BRIGHT, width=max(2, int(4 * s)))
@@ -281,7 +295,14 @@ def render_daily_card(
     output_path: Path,
     channel_handle: str = "",
 ) -> Path:
-    """Рендерит 1080x1350 PNG-карточку (с 2x суперсэмплингом для идеальной чёткости)."""
+    """Рендерит 1080x1350 PNG-карточку (с 2x суперсэмплингом для идеальной чёткости).
+
+    Для рубрики «Луна сегодня» автоматически используется короткий макет:
+    только фаза, знак и одна строка — именно такой пост чаще всего пересылают.
+    """
+    if ctx.rubric_key == "moon_today":
+        return render_moon_card(ctx, headline, subline, output_path, channel_handle)
+
     W, H = 2160, 2700  # 2x для антиалиасинга, затем уменьшим до 1080x1350
     img = Image.new("RGB", (W, H), BG_DARK)
     draw = ImageDraw.Draw(img)
@@ -393,10 +414,29 @@ def render_daily_card(
         _draw_tarot_cartouche(draw, cx, cy_med + 95, ctx.tarot_card["numeral"], font_num)
     else:
         _draw_libra_scales(draw, cx, cy_med + 100, scale=1.02)
-        if ctx.card_theme == "love":
-            # Два переплетённых кольца над весами (без пересечения с навершием)
+
+        if ctx.card_theme in ("love", "month_love"):
+            # Два переплетённых кольца над весами
             draw.ellipse((cx - 48, cy_med - 160, cx + 10, cy_med - 102), outline=GOLD_BRIGHT, width=3)
             draw.ellipse((cx - 10, cy_med - 160, cx + 48, cy_med - 102), outline=GOLD_MAIN, width=3)
+
+        elif ctx.card_theme in ("sex", "month_sex"):
+            # Символ Венеры под стержнем — знак чувственности дня
+            _draw_venus_symbol(draw, cx, cy_med + 344, 54)
+
+        elif ctx.card_theme in ("business", "month_business"):
+            # Две монеты по бокам под чашами — «деньги и рост»
+            _draw_coin(draw, cx - 158, cy_med + 316, 46)
+            _draw_coin(draw, cx + 158, cy_med + 316, 46)
+
+        elif ctx.card_theme == "quiz":
+            # Две театральные маски по бокам под чашами
+            _draw_mask(draw, cx - 158, cy_med + 312, 46, smile=False)
+            _draw_mask(draw, cx + 158, cy_med + 312, 46, smile=True)
+
+        elif ctx.card_theme == "moon":
+            # Луна уже нарисована выше — добавл	яем тонкий ореол
+            draw.arc((cx - 150, cy_med - 420, cx + 150, cy_med - 120), 200, 340, fill=GOLD_DIM, width=2)
 
     # Заголовок карточки (ниже астролябии)
     clean_head = _clean_serif_text(headline.upper()) or "ВЕСЫ • ПРОГНОЗ"
@@ -415,7 +455,7 @@ def render_daily_card(
     _draw_diamond(draw, cx, div_y, 16, 16, GOLD_MAIN)
 
     # Подзаголовок карточки
-    clean_sub = _clean_serif_text(subline)
+    clean_sub = _sentence_case(_clean_serif_text(subline))
     sub_lines = _wrap_text(draw, clean_sub, font_sub, max_width=1660, max_lines=2)
     y_sub = div_y + 42
     for line in sub_lines:
@@ -474,6 +514,151 @@ def render_daily_card(
     draw.text((cx - (fb[2] - fb[0]) / 2 - fb[0], 2518), footer_text, font=font_footer, fill=GOLD_MUTED)
 
     # Сглаженное уменьшение до 1080x1350
+    final_img = img.resize((1080, 1350), Image.Resampling.LANCZOS)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    final_img.save(output_path, format="PNG", optimize=True)
+    return output_path
+
+
+def _draw_venus_symbol(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float) -> None:
+    """Символ Венеры ♀ — знак чувственности и притяжения (управитель Весов)."""
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=GOLD_BRIGHT, width=4)
+    draw.line([(cx, cy + r), (cx, cy + r * 2.35)], fill=GOLD_BRIGHT, width=4)
+    draw.line([(cx - r * 0.72, cy + r * 1.62), (cx + r * 0.72, cy + r * 1.62)], fill=GOLD_MAIN, width=4)
+    _draw_diamond(draw, cx, cy + r * 2.55, r * 0.22, r * 0.30, GOLD_MAIN)
+
+
+def _draw_mask(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float, smile: bool) -> None:
+    """Театральная маска (для рубрики-теста)."""
+    draw.ellipse((cx - r, cy - r * 1.12, cx + r, cy + r * 1.12), outline=GOLD_MAIN, width=3)
+    eye_dy = r * 0.30
+    for side in (-1, 1):
+        ex = cx + side * r * 0.40
+        draw.ellipse((ex - r * 0.18, cy - eye_dy - r * 0.13, ex + r * 0.18, cy - eye_dy + r * 0.13), outline=GOLD_BRIGHT, width=2)
+    mouth_y = cy + r * 0.34
+    box = (cx - r * 0.42, mouth_y - r * 0.26, cx + r * 0.42, mouth_y + r * 0.26)
+    if smile:
+        draw.arc(box, 20, 160, fill=GOLD_BRIGHT, width=3)
+    else:
+        draw.arc(box, 200, 340, fill=GOLD_BRIGHT, width=3)
+
+
+def _draw_coin(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float) -> None:
+    """Монета с четырёхлучевой звездой — «деньги и рост»."""
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=GOLD_MAIN, width=3)
+    draw.ellipse((cx - r + 14, cy - r + 14, cx + r - 14, cy + r - 14), outline=GOLD_DIM, width=2)
+    _draw_4point_star(draw, cx, cy, r * 1.02, r * 0.36, GOLD_BRIGHT)
+    _draw_4point_star(draw, cx, cy, r * 0.52, r * 0.18, GOLD_MAIN)
+
+
+def _draw_question_cartouche(draw: ImageDraw.ImageDraw, cx: float, cy: float, font_num) -> None:
+    """Картуш с «?» — эмблема рубрики-теста."""
+    w, h = 132, 168
+    draw.rounded_rectangle((cx - w, cy - h, cx + w, cy + h), radius=26, outline=GOLD_MAIN, width=3)
+    draw.rounded_rectangle((cx - w + 14, cy - h + 14, cx + w - 14, cy + h - 14), radius=18, outline=GOLD_DIM, width=2)
+    q = "?"
+    qb = draw.textbbox((0, 0), q, font=font_num)
+    draw.text((cx - (qb[2] - qb[0]) / 2 - qb[0], cy - (qb[3] - qb[1]) / 2 - qb[1] - 10), q, font=font_num, fill=GOLD_BRIGHT)
+    _draw_diamond(draw, cx, cy - h - 26, 12, 12, GOLD_MAIN)
+    _draw_diamond(draw, cx, cy + h + 26, 12, 12, GOLD_MAIN)
+
+
+def render_moon_card(
+    ctx: DailyAstroContext,
+    headline: str,
+    subline: str,
+    output_path: Path,
+    channel_handle: str = "",
+) -> Path:
+    """Короткая карточка «Луна сегодня»: только фаза, знак и одна фраза.
+
+    Без телеметрии и индексов — такой пост идеально пересылают друзьям.
+    """
+    W, H = 2160, 2700
+    img = Image.new("RGB", (W, H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+
+    cx, cy = W // 2, 1180  # центр Луны
+
+    # Мягкий ореол вокруг Луны
+    for r in range(820, 120, -22):
+        t = 1.0 - (r / 820.0)
+        col = tuple(int(BG_DARK[i] + (BG_CENTER[i] - BG_DARK[i]) * (t ** 1.5)) for i in range(3))
+        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=col)
+
+    # Звёзды
+    seed_bytes = hashlib.sha256(f"moon-{ctx.date_iso}".encode("utf-8")).digest()
+    for i in range(120):
+        h = hashlib.sha256(seed_bytes + bytes([i])).digest()
+        sx = 130 + (int.from_bytes(h[0:2], "big") % (W - 260))
+        sy = 130 + (int.from_bytes(h[2:4], "big") % (H - 260))
+        dist = ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5
+        if dist < 640:          # не залезаем на Луну
+            continue
+        if h[4] % 8 == 0:
+            _draw_4point_star(draw, sx, sy, 16, 4, GOLD_MUTED)
+        else:
+            rad = 2 + (h[5] % 4)
+            draw.ellipse((sx - rad, sy - rad, sx + rad, sy + rad), fill=GOLD_DIM if h[6] % 3 else GOLD_MAIN)
+
+    # Рамка
+    draw.rectangle((66, 66, W - 66, H - 66), outline=GOLD_MAIN, width=4)
+    draw.rectangle((92, 92, W - 92, H - 92), outline=GOLD_DIM, width=2)
+    for px, py in ((92, 92), (W - 92, 92), (92, H - 92), (W - 92, H - 92)):
+        draw.ellipse((px - 22, py - 22, px + 22, py + 22), fill=BG_DARK, outline=GOLD_MAIN, width=3)
+        _draw_4point_star(draw, px, py, 16, 5, GOLD_BRIGHT)
+
+    font_badge = _load_font(FONT_SERIF_BOLD_CANDIDATES, 46)
+    font_date = _load_font(FONT_SERIF_REG_CANDIDATES, 36)
+    font_head = _load_font(FONT_SERIF_BOLD_CANDIDATES, 104)
+    font_sub = _load_font(FONT_SERIF_REG_CANDIDATES, 50)
+    font_footer = _load_font(FONT_SERIF_REG_CANDIDATES, 32)
+
+    # Бейдж
+    badge_text = _clean_serif_text(ctx.rubric_badge.upper() or "ЛУНА СЕГОДНЯ")
+    bb = draw.textbbox((0, 0), badge_text, font=font_badge)
+    bw = bb[2] - bb[0]
+    draw.text((cx - bw / 2 - bb[0], 165), badge_text, font=font_badge, fill=GOLD_BRIGHT)
+    line_gap = 44
+    if cx - bw / 2 - line_gap > 220:
+        draw.line([(220, 190), (cx - bw / 2 - line_gap, 190)], fill=GOLD_MUTED, width=2)
+        draw.line([(cx + bw / 2 + line_gap, 190), (W - 220, 190)], fill=GOLD_MUTED, width=2)
+        _draw_diamond(draw, cx - bw / 2 - line_gap, 190, 9, 9, GOLD_MAIN)
+        _draw_diamond(draw, cx + bw / 2 + line_gap, 190, 9, 9, GOLD_MAIN)
+
+    date_line = _clean_serif_text(f"{ctx.date_human.upper()}  •  {ctx.lunar_day}-Й ЛУННЫЙ ДЕНЬ")
+    db = draw.textbbox((0, 0), date_line, font=font_date)
+    draw.text((cx - (db[2] - db[0]) / 2 - db[0], 240), date_line, font=font_date, fill=GOLD_MUTED)
+
+    # Тонкое кольцо и сама Луна
+    draw.ellipse((cx - 560, cy - 560, cx + 560, cy + 560), outline=GOLD_DIM, width=3)
+    _draw_moon_phase(draw, cx, cy, 470, ctx)
+
+    # Название фазы + знак
+    y = cy + 700
+    phase = _clean_serif_text(ctx.moon_phase_name.upper())
+    for line in _wrap_text(draw, phase, font_head, max_width=1700, max_lines=2):
+        lb = draw.textbbox((0, 0), line, font=font_head)
+        draw.text((cx - (lb[2] - lb[0]) / 2 - lb[0], y), line, font=font_head, fill=GOLD_BRIGHT)
+        y += (lb[3] - lb[1]) + 28
+
+    y += 10
+    draw.line([(620, y), (cx - 48, y)], fill=GOLD_MUTED, width=2)
+    draw.line([(cx + 48, y), (W - 620, y)], fill=GOLD_MUTED, width=2)
+    _draw_diamond(draw, cx, y, 16, 16, GOLD_MAIN)
+
+    y += 56
+    sub = _sentence_case(_clean_serif_text(subline or f"Луна в {ctx.moon_sign} • {ctx.moon_illumination:.0f}%"))
+    for line in _wrap_text(draw, sub, font_sub, max_width=1600, max_lines=2):
+        sb = draw.textbbox((0, 0), line, font=font_sub)
+        draw.text((cx - (sb[2] - sb[0]) / 2 - sb[0], y), line, font=font_sub, fill=GOLD_MAIN)
+        y += (sb[3] - sb[1]) + 20
+
+    # Футер
+    footer_text = _clean_serif_text(channel_handle or "ВЕСЫ • ЕЖЕДНЕВНЫЙ ПРОГНОЗ")
+    fb = draw.textbbox((0, 0), footer_text, font=font_footer)
+    draw.text((cx - (fb[2] - fb[0]) / 2 - fb[0], 2540), footer_text, font=font_footer, fill=GOLD_MUTED)
+
     final_img = img.resize((1080, 1350), Image.Resampling.LANCZOS)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     final_img.save(output_path, format="PNG", optimize=True)

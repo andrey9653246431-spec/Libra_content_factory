@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import json
 import math
@@ -55,6 +56,12 @@ MONTHS_GENITIVE = [
     "ноября",
     "декабря",
 ]
+
+from src.content_extras import (  # noqa: E402
+    LIBRA_TYPES,
+    month_genitive_ru,
+    month_number_ru,
+)
 
 WEEKDAYS_RU = [
     "Понедельник",
@@ -348,6 +355,64 @@ RUBRICS = {
         "emoji": "🔮",
         "hashtag": "#ВесыНеделя #ПрогнозВесы",
     },
+    # ── Новые ежедневные рубрики ──
+    "sex": {
+        "key": "sex",
+        "badge": "СЕКС И ЧУВСТВЕННОСТЬ",
+        "card_theme": "sex",
+        "emoji": "🔥",
+        "hashtag": "#СексСВесами #ЧувственностьВесов",
+    },
+    "love_daily": {
+        "key": "love_daily",
+        "badge": "ЛЮБОВЬ С ВЕСАМИ",
+        "card_theme": "love",
+        "emoji": "💞",
+        "hashtag": "#ЛюбовьСВесами #ОтношенияВесы",
+    },
+    "business": {
+        "key": "business",
+        "badge": "БИЗНЕС И ДЕНЬГИ",
+        "card_theme": "business",
+        "emoji": "💼",
+        "hashtag": "#БизнесВесы #ДеньгиВесы",
+    },
+    "quiz": {
+        "key": "quiz",
+        "badge": "ТЕСТ: КАКОЙ ВЫ ВЕСЫ",
+        "card_theme": "quiz",
+        "emoji": "🎭",
+        "hashtag": "#ТестВесы #КакойТыВесы",
+    },
+    "moon_today": {
+        "key": "moon_today",
+        "badge": "ЛУНА СЕГОДНЯ",
+        "card_theme": "moon",
+        "emoji": "🌙",
+        "hashtag": "#ЛунаСегодня #ФазаЛуны",
+    },
+    # ── Месячные прогнозы (последний день календарного месяца) ──
+    "month_love": {
+        "key": "month_love",
+        "badge": "ЛЮБОВЬ НА МЕСЯЦ",
+        "card_theme": "love",
+        "emoji": "💞",
+        "hashtag": "#ЛюбовьНаМесяц #ПрогнозВесыМесяц",
+    },
+    "month_sex": {
+        "key": "month_sex",
+        "badge": "СЕКС НА МЕСЯЦ",
+        "card_theme": "sex",
+        "emoji": "🔥",
+        "hashtag": "#СексНаМесяц #ЧувственностьВесов",
+    },
+    "month_business": {
+        "key": "month_business",
+        "badge": "БИЗНЕС НА МЕСЯЦ",
+        "card_theme": "business",
+        "emoji": "💼",
+        "hashtag": "#БизнесНаМесяц #ДеньгиВесов",
+    },
 }
 
 
@@ -388,6 +453,14 @@ class DailyAstroContext:
     rubric_hashtag: str
     tarot_card: dict[str, str]
     compat_partner: dict[str, str]
+    # новые поля
+    day_of_month: int = 1
+    month_last_day: int = 31
+    is_month_end: bool = False
+    target_month: int = 1
+    target_month_name: str = ""
+    target_month_genitive: str = ""
+    libra_type: dict[str, str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -472,16 +545,24 @@ def load_history(history_path: Path) -> dict[str, Any]:
         return {"used_tarot": [], "used_compat": [], "posts": []}
 
 
+# Рубрики, где фигурирует партнёрский знак: для них общий антиповтор,
+# иначе за один день «Весы × Лев» может выпасть трижды.
+PAIRED_RUBRICS = {
+    "love", "love_daily", "sex", "business",
+    "month_love", "month_sex", "month_business",
+}
+
+
 def save_history(history_path: Path, history: dict[str, Any], ctx: DailyAstroContext, title: str) -> None:
     history_path.parent.mkdir(parents=True, exist_ok=True)
     if ctx.rubric_key == "tarot":
         used_tarot = [x for x in history.get("used_tarot", []) if x != ctx.tarot_card["id"]]
         used_tarot.append(ctx.tarot_card["id"])
-        history["used_tarot"] = used_tarot[-18:]
-    if ctx.rubric_key == "love":
+        history["used_tarot"] = used_tarot[-14:]
+    if ctx.rubric_key in PAIRED_RUBRICS:
         used_compat = [x for x in history.get("used_compat", []) if x != ctx.compat_partner["sign"]]
         used_compat.append(ctx.compat_partner["sign"])
-        history["used_compat"] = used_compat[-8:]
+        history["used_compat"] = used_compat[-6:]
 
     posts = history.get("posts", [])
     posts.append(
@@ -496,26 +577,66 @@ def save_history(history_path: Path, history: dict[str, Any], ctx: DailyAstroCon
     history_path.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def choose_rubric(slot: str, weekday_index: int) -> str:
-    """Выбирает рубрику по слоту и дню недели."""
+def choose_rubric(slot: str, weekday_index: int, day_of_month: int = 1, month_last_day: int = 31) -> str:
+    """Выбирает рубрику по слоту, дню недели и (для месячных) последнему дню месяца."""
     s = slot.lower().strip()
+
+    # В последний календарный день месяца тематические слоты
+    # превращаются в месячные прогнозы на СЛЕДУЮЩИЙ месяц.
+    # ЭТА ПРОВЕРКА ИДЁТ ПЕРВОЙ — иначе алиасы из RUBRICS её перекроют.
+    if day_of_month == month_last_day:
+        month_slot_map = {
+            "sex": "month_sex",
+            "love": "month_love",
+            "love_daily": "month_love",
+            "business": "month_business",
+            "evening": "month_love",
+        }
+        if s in month_slot_map:
+            return month_slot_map[s]
+
+    # «love» — это ежедневная рубрика «Любовь с Весами» (алиас love_daily)
+    if s == "love":
+        return "love_daily"
+
     if s in RUBRICS:
         return s
+
     if s == "morning":
         return "forecast"
+
     if s == "day":
         return "tarot" if weekday_index % 2 == 0 else "venus"
+
+    if s == "sex":
+        return "sex"
+
+    if s in ("love", "love_daily"):
+        return "love_daily"
+
+    if s == "business":
+        return "business"
+
+    if s == "moon":
+        return "moon_today"
+
+    if s == "quiz":
+        return "quiz"
+
     if s == "evening":
+        # Секс/Любовь/Бизнес выходят ЕЖЕДНЕВНО отдельными слотами,
+        # поэтому вечерняя ротация отдана «атмосферным» форматам.
         evening_map = {
-            0: "tarot",      # Пн
-            1: "love",       # Вт
-            2: "venus",      # Ср
-            3: "tarot",      # Чт
-            4: "love",       # Пт (Венера)
-            5: "venus",      # Сб
-            6: "week_ahead", # Вс
+            0: "tarot",        # Пн — карта дня
+            1: "quiz",         # Вт — тест «Какой вы Весы?»
+            2: "venus",        # Ср — совет Венеры
+            3: "tarot",        # Чт — карта дня
+            4: "quiz",         # Пт — тест
+            5: "week_ahead",   # Сб — фокус на неделю
+            6: "week_ahead",   # Вс — фокус на неделю
         }
         return evening_map.get(weekday_index, "tarot")
+
     return "forecast"
 
 
@@ -618,8 +739,19 @@ def build_daily_context(
     start_h = 10 + (seed_bytes[6] % 9)
     lucky_hours = f"{start_h:02d}:00–{start_h + 2:02d}:00"
 
-    rubric_key = choose_rubric(slot, weekday_idx)
+    # Последний календарный день месяца -> месячные прогнозы
+    next_month = local_dt.month % 12 + 1
+    next_year = local_dt.year + (1 if local_dt.month == 12 else 0)
+    month_last_day = calendar.monthrange(local_dt.year, local_dt.month)[1]
+    is_month_end = local_dt.day == month_last_day
+    # Месяц, НА который делается прогноз: если сегодня последний день — следующий месяц
+    target_month = next_month if is_month_end else local_dt.month
+
+    rubric_key = choose_rubric(slot, weekday_idx, local_dt.day, month_last_day)
     rubric_meta = RUBRICS[rubric_key]
+
+    # Тип Весов для рубрики-теста (детерминированно по дате)
+    libra_type = LIBRA_TYPES[seed_bytes[7] % len(LIBRA_TYPES)] if rubric_key == "quiz" else None
 
     history = load_history(history_path) if history_path else {"used_tarot": [], "used_compat": []}
     tarot_card = _pick_from_pool(
@@ -671,4 +803,11 @@ def build_daily_context(
         rubric_hashtag=rubric_meta["hashtag"],
         tarot_card=tarot_card,
         compat_partner=compat_partner,
+        day_of_month=local_dt.day,
+        month_last_day=month_last_day,
+        is_month_end=is_month_end,
+        target_month=target_month,
+        target_month_name=month_number_ru(target_month),
+        target_month_genitive=month_genitive_ru(target_month),
+        libra_type=libra_type,
     )
