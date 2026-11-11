@@ -1,0 +1,114 @@
+name: Fix repo layout (one-time)
+
+# Одноразовая починка структуры репозитория.
+#
+# Запускается ДВУМЯ способами:
+#   1) автоматически — как только вы загрузите libra-content-factory.zip в корень репозитория;
+#   2) вручную — Actions → «Fix repo layout (one-time)» → Run workflow (справа сверху).
+#
+# Что делает:
+#   1) если в корне лежит libra-content-factory.zip — распаковывает его в корень;
+#   2) иначе переносит «плоские» файлы в правильные папки (src/, templates/, tests/, data/, assets/);
+#   3) удаляет мусорные копии и тестовые PNG из корня;
+#   4) коммитит результат и печатает проверку структуры.
+
+on:
+  # Автозапуск сразу после загрузки архива в корень
+  push:
+    paths:
+      - "libra-content-factory.zip"
+  # Ручной запуск кнопкой
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-layout:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack project zip (if uploaded)
+        shell: bash
+        run: |
+          if [ -f libra-content-factory.zip ]; then
+            echo "::notice::Найден libra-content-factory.zip — распаковываю"
+            mkdir -p .unpack
+            unzip -q -o libra-content-factory.zip -d .unpack
+            if [ -d .unpack/libra-content-factory ]; then
+              cp -a .unpack/libra-content-factory/. .
+            else
+              cp -a .unpack/. .
+            fi
+            rm -rf .unpack libra-content-factory.zip
+            echo "ZIP_USED=1" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Архив не найден — переношу существующие файлы в папки"
+          fi
+
+      - name: Move flat files into folders (if no zip)
+        shell: bash
+        run: |
+          if [ "${ZIP_USED}" = "1" ]; then
+            echo "Пропуск: структура взята из архива"
+            exit 0
+          fi
+          mkdir -p src assets data templates tests
+          for f in astro_engine.py card_generator.py fallback_writer.py llm_client.py main.py telegram_publisher.py; do
+            if [ -f "$f" ]; then git mv "$f" "src/$f"; fi
+          done
+          if [ -f __init__.py ] && [ ! -f src/__init__.py ]; then git mv __init__.py src/__init__.py; fi
+          if [ -f content_plan.md ]; then git mv content_plan.md templates/content_plan.md; fi
+          if [ -f history.json ]; then git mv history.json data/history.json; fi
+          if [ -f test_factory.py ]; then git mv test_factory.py tests/test_factory.py; fi
+          if [ -f libra_avatar.png ]; then git mv libra_avatar.png assets/libra_avatar.png; fi
+          echo "Файлы перенесены по папкам"
+
+      - name: Remove leftover duplicates in repo root
+        shell: bash
+        run: |
+          rm -f __init__.py astro_engine.py card_generator.py fallback_writer.py llm_client.py \
+                main.py telegram_publisher.py content_plan.md history.json last_post.json \
+                test_factory.py libra_avatar.png card_2026-*.png || true
+          echo "Корень очищен от дублей"
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::Изменений нет — структура уже правильная"
+          else
+            git commit -m "chore: fix project structure [skip ci]"
+            git push
+            echo "::notice::Структура зафиксирована в репозитории"
+          fi
+
+      - name: Verify structure
+        shell: bash
+        run: |
+          echo "=== Корень репозитория ==="
+          ls -la
+          echo
+          missing=0
+          for f in requirements.txt src/main.py src/astro_engine.py src/card_generator.py \
+                   src/llm_client.py src/fallback_writer.py src/telegram_publisher.py \
+                   src/__init__.py .github/workflows/autopost.yml; do
+            if [ -f "$f" ]; then
+              echo "✅ $f"
+            else
+              echo "❌ ОТСУТСТВУЕТ: $f"
+              missing=$((missing+1))
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Не хватает $missing файл(ов). Загрузите libra-content-factory.zip в корень и запустите этот workflow снова."
+            exit 1
+          fi
+          echo
+          echo "🎉 Структура корректна — можно запускать «Libra Content Factory Autopost»"
