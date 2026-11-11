@@ -4,7 +4,8 @@
     "III_EMPRESS",
     "FOUR_WANDS",
     "KING_CUPS",
-    "XIX_SUN"
+    "XIX_SUN",
+    "XIV_TEMPERANCE"
   ],
   "used_compat": [],
   "posts": [
@@ -43,6 +44,12 @@
       "slot": "day",
       "rubric": "tarot",
       "title": "Карта дня: XIX • Солнце"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: XIV • Умеренность"
     }
   ]
 }
