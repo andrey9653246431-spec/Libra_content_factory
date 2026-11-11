@@ -1,5 +1,14 @@
 {
-  "used_tarot": [],
+  "used_tarot": [
+    "VIII_STRENGTH"
+  ],
   "used_compat": [],
-  "posts": []
+  "posts": [
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: VIII • Сила"
+    }
+  ]
 }
