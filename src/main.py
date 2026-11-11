@@ -42,12 +42,14 @@ def _load_dotenv_if_present(env_path: Path) -> None:
 def _infer_slot_by_hour(tz_offset_hours: int) -> str:
     from datetime import timedelta
 
+    # Слот auto должен повторять реальное расписание (2 поста в день):
+    #   09:30 МСК — прогноз дня, 20:00 МСК — вечерняя ротация.
+    # Раньше окно 12:00–17:00 отдавало «day» (карта дня Таро) — из-за этого
+    # ручной запуск с автослотом молча публиковал не ту рубрику.
     now_local = datetime.now(timezone.utc) + timedelta(hours=tz_offset_hours)
     h = now_local.hour
     if h < 12:
         return "morning"
-    if h < 17:
-        return "day"
     return "evening"
 
 
