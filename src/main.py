@@ -60,7 +60,7 @@ def run_pipeline(
     _load_dotenv_if_present(BASE_DIR / ".env")
 
     tz_offset = int(os.getenv("TIMEZONE_OFFSET", "3"))
-    channel_handle = os.getenv("CHANNEL_HANDLE", "@vesy_prognoz").strip()
+    channel_handle = os.getenv("CHANNEL_HANDLE", "@libra_astra").strip()
 
     now_utc = datetime.now(timezone.utc)
     if date_override:
@@ -77,7 +77,7 @@ def run_pipeline(
         history_path=history_path,
     )
 
-    log(f"[2/5] Генерация текста: провайдер={'offline' if force_offline else 'auto'}")
+    log(f"[2/5] Генерация текста: провайдер={'offline' if force_offline else 'auto'}, подпись={channel_handle!r}")
     content = generate_post_content(
         ctx=ctx,
         channel_handle=channel_handle,
