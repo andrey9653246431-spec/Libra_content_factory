@@ -1,7 +1,8 @@
 {
   "used_tarot": [
     "VIII_STRENGTH",
-    "III_EMPRESS"
+    "III_EMPRESS",
+    "FOUR_WANDS"
   ],
   "used_compat": [],
   "posts": [
@@ -16,6 +17,12 @@
       "slot": "day",
       "rubric": "tarot",
       "title": "Карта дня: III • Императрица"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: IV • Четвёрка Жезлов"
     }
   ]
 }
