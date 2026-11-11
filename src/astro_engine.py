@@ -377,6 +377,13 @@ RUBRICS = {
         "emoji": "💼",
         "hashtag": "#БизнесВесы #ДеньгиВесы",
     },
+    "pulse": {
+        "key": "pulse",
+        "badge": "ВЕСЫ ЗА 15 СЕКУНД",
+        "card_theme": "pulse",
+        "emoji": "♎",
+        "hashtag": "#ВесыЗа15Секунд #ВесыСегодня",
+    },
     "quiz": {
         "key": "quiz",
         "badge": "ТЕСТ: КАКОЙ ВЫ ВЕСЫ",
@@ -599,6 +606,9 @@ def choose_rubric(slot: str, weekday_index: int, day_of_month: int = 1, month_la
     if s == "love":
         return "love_daily"
 
+    if s == "pulse":
+        return "pulse"
+
     if s in RUBRICS:
         return s
 
@@ -620,20 +630,19 @@ def choose_rubric(slot: str, weekday_index: int, day_of_month: int = 1, month_la
     if s == "moon":
         return "moon_today"
 
-    if s == "quiz":
-        return "quiz"
+
 
     if s == "evening":
         # Секс/Любовь/Бизнес выходят ЕЖЕДНЕВНО отдельными слотами,
         # поэтому вечерняя ротация отдана «атмосферным» форматам.
         evening_map = {
-            0: "tarot",        # Пн — карта дня
-            1: "quiz",         # Вт — тест «Какой вы Весы?»
-            2: "venus",        # Ср — совет Венеры
-            3: "tarot",        # Чт — карта дня
-            4: "quiz",         # Пт — тест
+            0: "pulse",        # Пн — «Весы за 15 секунд»
+            1: "tarot",        # Вт — карта дня
+            2: "quiz",         # Ср — тест «Какой вы Весы?»
+            3: "pulse",        # Чт — «Весы за 15 секунд»
+            4: "tarot",        # Пт — карта дня
             5: "week_ahead",   # Сб — фокус на неделю
-            6: "week_ahead",   # Вс — фокус на неделю
+            6: "venus",        # Вс — совет Венеры
         }
         return evening_map.get(weekday_index, "tarot")
 

@@ -302,6 +302,8 @@ def render_daily_card(
     """
     if ctx.rubric_key == "moon_today":
         return render_moon_card(ctx, headline, subline, output_path, channel_handle)
+    if ctx.rubric_key == "pulse":
+        return render_pulse_card(ctx, headline, subline, output_path, channel_handle)
 
     W, H = 2160, 2700  # 2x для антиалиасинга, затем уменьшим до 1080x1350
     img = Image.new("RGB", (W, H), BG_DARK)
@@ -658,6 +660,101 @@ def render_moon_card(
     footer_text = _clean_serif_text(channel_handle or "ВЕСЫ • ЕЖЕДНЕВНЫЙ ПРОГНОЗ")
     fb = draw.textbbox((0, 0), footer_text, font=font_footer)
     draw.text((cx - (fb[2] - fb[0]) / 2 - fb[0], 2540), footer_text, font=font_footer, fill=GOLD_MUTED)
+
+    final_img = img.resize((1080, 1350), Image.Resampling.LANCZOS)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    final_img.save(output_path, format="PNG", optimize=True)
+    return output_path
+
+
+def render_pulse_card(
+    ctx: DailyAstroContext,
+    headline: str,
+    subline: str,
+    output_path: Path,
+    channel_handle: str = "",
+) -> Path:
+    """Карточка «Весы за 15 секунд»: крупная фраза на весь кадр.
+
+    Минимум элементов — только фраза, дата и подпись. Такую карточку
+    пересылают в личку и ставят в сторис.
+    """
+    W, H = 2160, 2700
+    img = Image.new("RGB", (W, H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+    cx = W // 2
+
+    # Лёгкий градиент по вертикали
+    for y in range(0, H, 6):
+        t = 1.0 - abs(y - H * 0.45) / (H * 0.75)
+        col = tuple(int(BG_DARK[i] + (BG_CENTER[i] - BG_DARK[i]) * max(0.0, t) ** 1.7) for i in range(3))
+        draw.rectangle((0, y, W, y + 6), fill=col)
+
+    # Звёзды
+    seed_bytes = hashlib.sha256(f"pulse-{ctx.date_iso}".encode("utf-8")).digest()
+    for i in range(90):
+        h = hashlib.sha256(seed_bytes + bytes([i])).digest()
+        sx = 110 + (int.from_bytes(h[0:2], "big") % (W - 220))
+        sy = 110 + (int.from_bytes(h[2:4], "big") % (H - 220))
+        if 500 < sy < 2200 and 260 < sx < W - 260:
+            continue  # не мешаем тексту
+        if h[4] % 7 == 0:
+            _draw_4point_star(draw, sx, sy, 16, 5, GOLD_MUTED)
+        else:
+            rad = 2 + (h[5] % 4)
+            draw.ellipse((sx - rad, sy - rad, sx + rad, sy + rad), fill=GOLD_DIM if h[6] % 3 else GOLD_MAIN)
+
+    # Рамка
+    draw.rectangle((66, 66, W - 66, H - 66), outline=GOLD_MAIN, width=4)
+    draw.rectangle((92, 92, W - 92, H - 92), outline=GOLD_DIM, width=2)
+    for px, py in ((92, 92), (W - 92, 92), (92, H - 92), (W - 92, H - 92)):
+        draw.ellipse((px - 22, py - 22, px + 22, py + 22), fill=BG_DARK, outline=GOLD_MAIN, width=3)
+        _draw_4point_star(draw, px, py, 16, 5, GOLD_BRIGHT)
+
+    font_badge = _load_font(FONT_SERIF_BOLD_CANDIDATES, 44)
+    font_date = _load_font(FONT_SERIF_REG_CANDIDATES, 38)
+    phrase_len = len(headline)
+    font_quote = _load_font(FONT_SERIF_BOLD_CANDIDATES, 92 if phrase_len > 44 else 104)
+    font_footer = _load_font(FONT_SERIF_REG_CANDIDATES, 34)
+
+    # Бейдж
+    badge = _clean_serif_text(ctx.rubric_badge.upper() or "ВЕСЫ ЗА 15 СЕКУНД")
+    bb = draw.textbbox((0, 0), badge, font=font_badge)
+    bw = bb[2] - bb[0]
+    draw.text((cx - bw / 2 - bb[0], 158), badge, font=font_badge, fill=GOLD_BRIGHT)
+    gap = 42
+    if cx - bw / 2 - gap > 210:
+        draw.line([(210, 182), (cx - bw / 2 - gap, 182)], fill=GOLD_MUTED, width=2)
+        draw.line([(cx + bw / 2 + gap, 182), (W - 210, 182)], fill=GOLD_MUTED, width=2)
+        _draw_diamond(draw, cx - bw / 2 - gap, 182, 9, 9, GOLD_MAIN)
+        _draw_diamond(draw, cx + bw / 2 + gap, 182, 9, 9, GOLD_MAIN)
+
+    date_line = _clean_serif_text(f"{ctx.date_human.upper()}  •  {ctx.weekday_name.upper()}")
+    db = draw.textbbox((0, 0), date_line, font=font_date)
+    draw.text((cx - (db[2] - db[0]) / 2 - db[0], 236), date_line, font=font_date, fill=GOLD_MUTED)
+
+    # Огромная фраза по центру
+    phrase = _clean_serif_text(headline)
+    lines = _wrap_text(draw, phrase, font_quote, max_width=1640, max_lines=6)
+    line_h = int(font_quote.size * 1.27) if hasattr(font_quote, "size") else 132
+    total_h = len(lines) * line_h
+    y = (H - total_h) // 2 - 60
+    for line in lines:
+        lb = draw.textbbox((0, 0), line, font=font_quote)
+        draw.text((cx - (lb[2] - lb[0]) / 2 - lb[0], y), line, font=font_quote, fill=GOLD_BRIGHT)
+        y += line_h
+
+    # Декоративный разделитель под фразой
+    y += 46
+    draw.line([(620, y), (cx - 60, y)], fill=GOLD_MUTED, width=2)
+    draw.line([(cx + 60, y), (W - 620, y)], fill=GOLD_MUTED, width=2)
+    _draw_diamond(draw, cx, y, 20, 20, GOLD_MAIN)
+    _draw_diamond(draw, cx, y, 9, 9, BG_DARK)
+
+    # Дата сверху фразы уже есть; внизу — канал
+    footer_text = _clean_serif_text(channel_handle or "ВЕСЫ • ЕЖЕДНЕВНЫЙ ПРОГНОЗ")
+    fb = draw.textbbox((0, 0), footer_text, font=font_footer)
+    draw.text((cx - (fb[2] - fb[0]) / 2 - fb[0], 2520), footer_text, font=font_footer, fill=GOLD_MUTED)
 
     final_img = img.resize((1080, 1350), Image.Resampling.LANCZOS)
     output_path.parent.mkdir(parents=True, exist_ok=True)

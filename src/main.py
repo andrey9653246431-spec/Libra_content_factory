@@ -195,7 +195,7 @@ def main() -> int:
         choices=[
             "auto", "morning", "day", "evening",
             "forecast", "tarot", "love", "venus", "week_ahead",
-            "sex", "love_daily", "business", "quiz", "moon",
+            "sex", "love_daily", "business", "quiz", "moon", "pulse",
             "month_love", "month_sex", "month_business", "month_digest",
         ],
         help="Слот или конкретная рубрика поста",

@@ -267,6 +267,9 @@ def generate_fallback_post(ctx: DailyAstroContext, channel_handle: str = "") -> 
         )
         post_html = _fit_caption(post_html, opening, closing)
 
+    elif ctx.rubric_key == "pulse":
+        title, card_headline, card_subline, post_html = _build_pulse(ctx, seed_base, footer)
+
     else:  # forecast
         love_tip = _pick(LOVE_FORECASTS, seed_base + "-love")
         career_tip = _pick(CAREER_FORECASTS, seed_base + "-career")
@@ -303,6 +306,7 @@ def generate_fallback_post(ctx: DailyAstroContext, channel_handle: str = "") -> 
 #  НОВЫЕ РУБРИКИ: секс, любовь с Весами, бизнес, тест, луна, месячные
 # ═══════════════════════════════════════════════════════════════════════════
 
+from src.pulse_content import pulse_compat, pulse_cta, pulse_line  # noqa: E402
 from src.content_extras import (  # noqa: E402
     BIZ_CLIENTS,
     BIZ_FOCUS,
@@ -328,6 +332,28 @@ def _sex_energy(score: int) -> tuple[int, str, str]:
         if score >= level:
             return level, label, note
     return 3, "Умеренная", SEX_ENERGY_LEVELS[-1][2]
+
+
+def _build_pulse(ctx, seed_base: str, footer: str):
+    """«Весы за 15 секунд» — механика astro geeks: строка + сочетания."""
+    idx = int.from_bytes(hashlib.sha256((seed_base + "-pulse").encode()).digest()[:4], "big")
+    line = pulse_line(idx)
+    best, worst = pulse_compat(ctx.weekday_name)
+    cta = pulse_cta(idx)
+
+    title = f"Весы за 15 секунд: {line['tag']}"
+    card_headline = line["headline"]
+    card_subline = ctx.date_human
+
+    post_html = (
+        f"♎ <b>ВЕСЫ, {ctx.date_human.upper()}</b>\n\n"
+        f"<b>{line['headline']}</b>\n"
+        f"<i>{line['clarify']}</i>\n\n"
+        f"<blockquote>✅ Лучшее сочетание: <b>{best[0]}</b>, {best[1]}\n"
+        f"⛔ Худшее сочетание: <b>{worst[0]}</b>, {worst[1]}</blockquote>\n\n"
+        f"{cta}{footer}"
+    )
+    return title, card_headline, card_subline, post_html
 
 
 def _build_sex_post(ctx, seed_base: str, opening: str, closing: str, cta: str, footer: str):

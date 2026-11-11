@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from src.astro_engine import build_daily_context, save_history, load_history
+from src.astro_engine import build_daily_context, choose_rubric, save_history, load_history
 from src.card_generator import render_daily_card
 from src.fallback_writer import generate_fallback_post
 from src.llm_client import sanitize_telegram_html, generate_post_content
@@ -156,6 +156,52 @@ class ContentFactoryTests(unittest.TestCase):
             self.assertFalse(res["published"])
             self.assertEqual(res["rubric"], "tarot")
             self.assertTrue(Path(res["card_path"]).exists())
+
+
+class TestPulseRubric(unittest.TestCase):
+    """«Весы за 15 секунд» — вирусная рубрика в формате astro geeks."""
+
+    def _post(self, day: int = 12):
+        ctx = build_daily_context(
+            now_utc=datetime(2026, 11, day, 17, tzinfo=timezone.utc), slot="pulse"
+        )
+        self.assertEqual(ctx.rubric_key, "pulse")
+        post = generate_fallback_post(ctx, "@libra_astra")
+        return ctx, post
+
+    def test_slot_and_alias_resolve_to_pulse(self):
+        self.assertEqual(choose_rubric("pulse", 0, 12, 30), "pulse")
+        self.assertEqual(choose_rubric("evening", 0, 20, 0), "pulse")   # понедельник
+        self.assertEqual(choose_rubric("evening", 3, 20, 0), "pulse")   # четверг
+
+    def test_body_is_pulse_not_forecast(self):
+        ctx, post = self._post()
+        html = post["post_html"]
+        self.assertIn("ВЕСЫ, 12 НОЯБРЯ", html)
+        self.assertIn("Лучшее сочетание", html)
+        self.assertIn("Худшее сочетание", html)
+        self.assertIn("#ВесыЗа15Секунд", html)
+        # тело не должно содержать блоков большого прогноза
+        self.assertNotIn("Общая атмосфера", html)
+        self.assertNotIn("Дела и финансы", html)
+
+    def test_short_enough_for_one_screen(self):
+        _, post = self._post()
+        self.assertLess(len(post["post_html"]), 500)
+
+    def test_card_headline_not_truncated(self):
+        _, post = self._post()
+        self.assertNotIn("…", post["card_headline"])
+        self.assertGreater(len(post["card_headline"]), 20)
+
+    def test_card_renders(self):
+        ctx, post = self._post()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "pulse.png"
+            render_daily_card(ctx, post["card_headline"], post["card_subline"], out, "@libra_astra")
+            self.assertTrue(out.exists())
+            with Image.open(out) as img:
+                self.assertEqual(img.size, (1080, 1350))
 
 
 if __name__ == "__main__":
