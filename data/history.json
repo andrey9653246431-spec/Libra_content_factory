@@ -3,14 +3,46 @@
     "VIII_STRENGTH",
     "III_EMPRESS",
     "FOUR_WANDS",
-    "KING_CUPS"
+    "KING_CUPS",
+    "XIX_SUN"
   ],
   "used_compat": [],
   "posts": [
-    {"date": "2026-11-11", "slot": "day", "rubric": "tarot", "title": "Карта дня: VIII • Сила"},
-    {"date": "2026-11-11", "slot": "day", "rubric": "tarot", "title": "Карта дня: III • Императрица"},
-    {"date": "2026-11-11", "slot": "day", "rubric": "tarot", "title": "Карта дня: IV • Четвёрка Жезлов"},
-    {"date": "2026-11-11", "slot": "evening", "rubric": "venus", "title": "Совет Венеры на 11 ноября"},
-    {"date": "2026-11-11", "slot": "day", "rubric": "tarot", "title": "Карта дня: ♔ • Король Кубков"}
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: VIII • Сила"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: III • Императрица"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: IV • Четвёрка Жезлов"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "evening",
+      "rubric": "venus",
+      "title": "Совет Венеры на 11 ноября"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: ♔ • Король Кубков"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: XIX • Солнце"
+    }
   ]
 }
