@@ -1,0 +1,107 @@
+name: Libra Content Factory Autopost
+
+on:
+  schedule:
+    # 08:30 МСК (05:30 UTC) — утренний астропрогноз дня
+    - cron: "30 5 * * *"
+    # 19:00 МСК (16:00 UTC) — вечерняя рубрика (Таро / Любовь / Совет Венеры / Неделя)
+    # Удалите или закомментируйте строку ниже, если нужен 1 пост в день:
+    - cron: "0 16 * * *"
+
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "Какую рубрику сгенерировать"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - morning
+          - day
+          - evening
+          - forecast
+          - tarot
+          - love
+          - venus
+          - week_ahead
+      dry_run:
+        description: "Тестовый прогон без публикации в Telegram"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  publish-post:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install system fonts and Python dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-dejavu-core
+          pip install -r requirements.txt
+
+      - name: Generate and publish post
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHANNEL_ID: ${{ secrets.TG_CHANNEL_ID }}
+          TG_ADMIN_ID: ${{ secrets.TG_ADMIN_ID }}
+          PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'auto' }}
+          CHANNEL_HANDLE: ${{ vars.CHANNEL_HANDLE || '@vesy_prognoz' }}
+          TIMEZONE_OFFSET: ${{ vars.TIMEZONE_OFFSET || '3' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SLOT="${{ github.event.inputs.slot || 'auto' }}"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            UTC_HOUR=$(date -u +%H)
+            if [ "$UTC_HOUR" -lt 11 ]; then
+              SLOT="morning"
+            else
+              SLOT="evening"
+            fi
+          fi
+
+          EXTRA_FLAGS=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            EXTRA_FLAGS="--dry-run"
+          fi
+
+          python -m src.main --slot "$SLOT" $EXTRA_FLAGS
+
+      - name: Save generated preview artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libra-post-preview
+          path: output/
+          retention-days: 7
+
+      - name: Commit updated anti-repeat history
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet data/history.json 2>/dev/null || [ -n "$(git status --porcelain data/history.json)" ]; then
+            git add data/history.json
+            git commit -m "chore: update astro content history [skip ci]"
+            git push
+          fi
