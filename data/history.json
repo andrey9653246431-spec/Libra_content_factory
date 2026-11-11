@@ -2,7 +2,8 @@
   "used_tarot": [
     "VIII_STRENGTH",
     "III_EMPRESS",
-    "FOUR_WANDS"
+    "FOUR_WANDS",
+    "KING_CUPS"
   ],
   "used_compat": [],
   "posts": [
@@ -29,6 +30,12 @@
       "slot": "evening",
       "rubric": "venus",
       "title": "Совет Венеры на 11 ноября"
+    },
+    {
+      "date": "2026-11-11",
+      "slot": "day",
+      "rubric": "tarot",
+      "title": "Карта дня: ♔ • Король Кубков"
     }
   ]
 }
