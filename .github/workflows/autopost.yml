@@ -15,9 +15,11 @@ on:
   #
   # Вернуть остальные рубрики (луна, любовь, бизнес, секс) можно
   # раскомментировав строки ниже — они уже написаны и работают.
+  # ВАЖНО: минуты смещены с :00/:30 — это окна максимальной нагрузки GitHub,
+  # где запуски по расписанию чаще всего задерживаются или отбрасываются.
   schedule:
-    - cron: "30 6 * * *"    # 09:30 МСК — прогноз дня
-    - cron: "0 17 * * *"    # 20:00 МСК — вечерняя ротация
+    - cron: "37 6 * * *"    # 09:37 МСК — прогноз дня
+    - cron: "13 17 * * *"   # 20:13 МСК — вечерняя ротация
 
     # ── Отключено до 500 подписчиков ──
     # - cron: "30 4 * * *"    # 07:30 прогноз
@@ -26,6 +28,16 @@ on:
     # - cron: "30 15 * * *"   # 18:30 Тест
     # - cron: "0 18 * * *"    # 21:00 Секс
     # - cron: "50 20 * * *"   # 23:50 дайджест месяца
+
+  # Запасной вход: если встроенный планировщик GitHub так и не заработает,
+  # любой внешний cron (cron-job.org, Cloudflare, другой репозиторий) может
+  # дёргать этот workflow по API:
+  #   curl -X POST -H "Accept: application/vnd.github+json" \
+  #        -H "Authorization: Bearer <PAT с scope repo>" \
+  #        https://api.github.com/repos/OWNER/REPO/dispatches \
+  #        -d '{"event_type":"autopost","client_payload":{"slot":"auto"}}'
+  repository_dispatch:
+    types: [autopost]
 
   workflow_dispatch:
     inputs:
@@ -66,6 +78,12 @@ on:
 permissions:
   contents: write
   models: read
+
+# Страховка от двойного поста, если запуски по расписанию и вручную
+# пересекутся. Второй запуск встанет в очередь, а не опубликует дубль.
+concurrency:
+  group: libra-autopost-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish-post:
@@ -225,13 +243,25 @@ jobs:
           VERBOSE: "1"
         run: |
           SLOT="${{ github.event.inputs.slot || 'auto' }}"
+
+          # Рубрика выводится из КРОНА, который сработал, а не из часов на
+          # часах. GitHub почти всегда запускает job с опозданием (иногда на
+          # десятки минут), и старый вариант с date -u из-за этого подменял
+          # рубрику: утренний слот 06:*, задержанный до 07:15, уходил
+          # в ветку *) и публиковал «вечерний» пост.
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            case "$(date -u +%H:%M)" in
-              06:*) SLOT="morning" ;;      # 09:30 МСК — прогноз дня
-              17:*) SLOT="evening" ;;      # 20:00 МСК — вечерняя ротация
-              20:*) SLOT="month_digest" ;; # резерв: дайджест месяца (self-guard)
-              *)    SLOT="evening" ;;
+            case "${{ github.event.schedule }}" in
+              "37 6 * * *")    SLOT="morning" ;;
+              "13 17 * * *")   SLOT="evening" ;;
+              "50 20 * * *")   SLOT="month_digest" ;;
+              *)               SLOT="evening" ;;
             esac
+            echo "::notice::Сработал крон: '${{ github.event.schedule }}' (время старта UTC: $(date -u +%H:%M))"
+          fi
+
+          # Внешний cron через repository_dispatch
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            SLOT="${{ github.event.client_payload.slot || 'auto' }}"
           fi
 
           EXTRA_FLAGS=""
