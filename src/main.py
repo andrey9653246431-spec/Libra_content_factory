@@ -125,6 +125,43 @@ def run_pipeline(
         history_path=history_path,
     )
 
+    # ── Защита от дубля ───────────────────────────────────────────────
+    # Контент полностью детерминирован: seed = date-slot-rubric.
+    # Значит одинаковые (дата, слот, рубрика) = байт-в-байт одинаковый пост.
+    # Это случается, когда GitHub задерживает запуск и два слота слипаются
+    # (реальный случай 12.11: утренний запуск задержался, превратился
+    # в evening и вечером вышел тем же постом). Раньше защиты не было —
+    # канал получал два identical поста подряд.
+    if not dry_run and os.getenv("ALLOW_DUPLICATE", "").strip().lower() not in ("1", "true", "yes"):
+        _hist = load_history(history_path)
+        _dup = [
+            p for p in _hist.get("posts", [])
+            if p.get("date") == ctx.date_iso
+            and p.get("slot") == resolved_slot
+            and (p.get("rubric") or p.get("title")) == ctx.rubric_key
+        ]
+        if _dup:
+            print(
+                f"::warning::ДУБЛЬ ОТМЕНЁН: {ctx.date_iso} / {resolved_slot} / "
+                f"{ctx.rubric_key} уже публиковалось — «{_dup[-1].get('title')}». "
+                f"Пост не отправлен. Нужна вторая публикация подряд? "
+                f"Запустите вручную с Allow duplicate = true (переменная ALLOW_DUPLICATE)."
+            )
+            return {
+                "date": ctx.date_iso,
+                "slot": resolved_slot,
+                "rubric": ctx.rubric_key,
+                "source": "duplicate-guard",
+                "title": f"ПРОПУЩЕНО (дубль): {_dup[-1].get('title')}",
+                "card_headline": "",
+                "card_subline": "",
+                "card_path": None,
+                "post_html": "",
+                "astro": ctx.to_dict(),
+                "published": False,
+                "mode": "duplicate_skip",
+            }
+
     log(f"[2/5] Генерация текста: {active_provider_label(force_offline)}, подпись={channel_handle!r}")
     content = generate_post_content(
         ctx=ctx,
@@ -203,6 +240,11 @@ def main() -> int:
         help="Слот или конкретная рубрика поста",
     )
     parser.add_argument("--dry-run", action="store_true", help="Сгенерировать пост и картинку без отправки в Telegram")
+    parser.add_argument(
+        "--allow-duplicate",
+        action="store_true",
+        help="Опубликовать даже если такой же (дата+слот+рубрика) пост уже выходил",
+    )
     parser.add_argument("--offline", action="store_true", help="Принудительно использовать встроенный офлайн-генератор")
     parser.add_argument("--no-image", action="store_true", help="Не генерировать PNG-карточку")
     parser.add_argument("--date", default=None, help="Переопределить дату YYYY-MM-DD (для теста)")
@@ -210,6 +252,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.verbose:
         VERBOSE = True
+    if args.allow_duplicate:
+        os.environ["ALLOW_DUPLICATE"] = "1"
 
     # CHANNEL_HANDLE вида @username может заменить TG_CHANNEL_ID
     _handle = os.getenv("CHANNEL_HANDLE", "").strip()
@@ -258,7 +302,9 @@ def main() -> int:
         print("=" * 62, file=sys.stderr)
         return 1
 
-    if res.get("published") is False and not args.dry_run:
+    if res.get("mode") == "duplicate_skip":
+        print(f"[—] Пост пропущен защитой от дублей: {res['title']}", file=sys.stderr)
+    elif res.get("published") is False and not args.dry_run:
         print("[!] Пост не отправлен: сработал резервный режим", file=sys.stderr)
     print(f"[OK] Дата: {res['date']} | Рубрика: {res['rubric']} | Источник: {res['source']}")
     print(f"[OK] Заголовок: {res['title']}")
