@@ -5,7 +5,8 @@
     "FOUR_WANDS",
     "KING_CUPS",
     "XIX_SUN",
-    "XIV_TEMPERANCE"
+    "XIV_TEMPERANCE",
+    "VI_LOVERS"
   ],
   "used_compat": [],
   "posts": [
@@ -80,6 +81,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 13 ноября"
+    },
+    {
+      "date": "2026-11-13",
+      "slot": "evening",
+      "rubric": "tarot",
+      "title": "Карта дня: VI • Влюблённые"
     }
   ]
 }
