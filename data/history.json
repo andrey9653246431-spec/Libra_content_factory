@@ -105,6 +105,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 15 ноября"
+    },
+    {
+      "date": "2026-11-15",
+      "slot": "evening",
+      "rubric": "venus",
+      "title": "Совет Венеры на 15 ноября"
     }
   ]
 }
