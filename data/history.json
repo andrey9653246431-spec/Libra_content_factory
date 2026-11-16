@@ -117,6 +117,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 16 ноября"
+    },
+    {
+      "date": "2026-11-16",
+      "slot": "evening",
+      "rubric": "pulse",
+      "title": "Весы за 15 секунд: защита"
     }
   ]
 }
