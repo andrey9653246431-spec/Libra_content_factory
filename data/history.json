@@ -6,7 +6,8 @@
     "KING_CUPS",
     "XIX_SUN",
     "XIV_TEMPERANCE",
-    "VI_LOVERS"
+    "VI_LOVERS",
+    "XXI_WORLD"
   ],
   "used_compat": [],
   "posts": [
@@ -129,6 +130,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 17 ноября"
+    },
+    {
+      "date": "2026-11-17",
+      "slot": "evening",
+      "rubric": "tarot",
+      "title": "Карта дня: XXI • Мир"
     }
   ]
 }
