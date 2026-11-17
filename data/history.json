@@ -123,6 +123,12 @@
       "slot": "evening",
       "rubric": "pulse",
       "title": "Весы за 15 секунд: защита"
+    },
+    {
+      "date": "2026-11-17",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 17 ноября"
     }
   ]
 }
