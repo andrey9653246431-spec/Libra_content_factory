@@ -136,6 +136,12 @@
       "slot": "evening",
       "rubric": "tarot",
       "title": "Карта дня: XXI • Мир"
+    },
+    {
+      "date": "2026-11-18",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 18 ноября"
     }
   ]
 }
