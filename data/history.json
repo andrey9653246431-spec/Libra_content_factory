@@ -154,6 +154,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 19 ноября"
+    },
+    {
+      "date": "2026-11-19",
+      "slot": "evening",
+      "rubric": "pulse",
+      "title": "Весы за 15 секунд: границы"
     }
   ]
 }
