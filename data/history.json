@@ -7,7 +7,8 @@
     "XIX_SUN",
     "XIV_TEMPERANCE",
     "VI_LOVERS",
-    "XXI_WORLD"
+    "XXI_WORLD",
+    "XVII_STAR"
   ],
   "used_compat": [],
   "posts": [
@@ -166,6 +167,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 20 ноября"
+    },
+    {
+      "date": "2026-11-20",
+      "slot": "evening",
+      "rubric": "tarot",
+      "title": "Карта дня: XVII • Звезда"
     }
   ]
 }
