@@ -179,6 +179,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 21 ноября"
+    },
+    {
+      "date": "2026-11-21",
+      "slot": "evening",
+      "rubric": "week_ahead",
+      "title": "Фокус Весов на новую неделю"
     }
   ]
 }
