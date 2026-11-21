@@ -173,6 +173,12 @@
       "slot": "evening",
       "rubric": "tarot",
       "title": "Карта дня: XVII • Звезда"
+    },
+    {
+      "date": "2026-11-21",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 21 ноября"
     }
   ]
 }
