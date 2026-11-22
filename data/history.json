@@ -185,6 +185,12 @@
       "slot": "evening",
       "rubric": "week_ahead",
       "title": "Фокус Весов на новую неделю"
+    },
+    {
+      "date": "2026-11-22",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 22 ноября"
     }
   ]
 }
