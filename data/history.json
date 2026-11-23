@@ -197,6 +197,12 @@
       "slot": "evening",
       "rubric": "venus",
       "title": "Совет Венеры на 22 ноября"
+    },
+    {
+      "date": "2026-11-23",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 23 ноября"
     }
   ]
 }
