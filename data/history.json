@@ -203,6 +203,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 23 ноября"
+    },
+    {
+      "date": "2026-11-23",
+      "slot": "evening",
+      "rubric": "pulse",
+      "title": "Весы за 15 секунд: границы"
     }
   ]
 }
