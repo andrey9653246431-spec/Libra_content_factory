@@ -8,7 +8,8 @@
     "XIV_TEMPERANCE",
     "VI_LOVERS",
     "XXI_WORLD",
-    "XVII_STAR"
+    "XVII_STAR",
+    "I_MAGICIAN"
   ],
   "used_compat": [],
   "posts": [
@@ -215,6 +216,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 24 ноября"
+    },
+    {
+      "date": "2026-11-24",
+      "slot": "evening",
+      "rubric": "tarot",
+      "title": "Карта дня: I • Маг"
     }
   ]
 }
