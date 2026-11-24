@@ -209,6 +209,12 @@
       "slot": "evening",
       "rubric": "pulse",
       "title": "Весы за 15 секунд: границы"
+    },
+    {
+      "date": "2026-11-24",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 24 ноября"
     }
   ]
 }
