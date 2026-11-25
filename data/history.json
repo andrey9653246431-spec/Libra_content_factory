@@ -222,6 +222,12 @@
       "slot": "evening",
       "rubric": "tarot",
       "title": "Карта дня: I • Маг"
+    },
+    {
+      "date": "2026-11-25",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 25 ноября"
     }
   ]
 }
