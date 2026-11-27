@@ -9,7 +9,8 @@
     "VI_LOVERS",
     "XXI_WORLD",
     "XVII_STAR",
-    "I_MAGICIAN"
+    "I_MAGICIAN",
+    "II_HIGH_PRIESTESS"
   ],
   "used_compat": [],
   "posts": [
@@ -252,6 +253,12 @@
       "slot": "morning",
       "rubric": "forecast",
       "title": "Астропрогноз для Весов на 27 ноября"
+    },
+    {
+      "date": "2026-11-27",
+      "slot": "evening",
+      "rubric": "tarot",
+      "title": "Карта дня: II • Верховная Жрица"
     }
   ]
 }
