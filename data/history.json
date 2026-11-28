@@ -259,6 +259,12 @@
       "slot": "evening",
       "rubric": "tarot",
       "title": "Карта дня: II • Верховная Жрица"
+    },
+    {
+      "date": "2026-11-28",
+      "slot": "morning",
+      "rubric": "forecast",
+      "title": "Астропрогноз для Весов на 28 ноября"
     }
   ]
 }
